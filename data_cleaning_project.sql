@@ -19,21 +19,39 @@ ORDER BY ParcelID;
 
 
 
-SELECT a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, ISNULL(a.PropertyAddress,b.PropertyAddress)
-FROM nashville_housing a
-JOIN nashville_housing b
-	ON a.ParcelID = b.ParcelID
-	AND a.[UniqueID ] <> b.[UniqueID ]
-WHERE a.PropertyAddress is null;
+-- Change the empty values to Null values
+
+update nashville_housing
+set PropertyAddress=Null 
+where length(propertyAddress)=0;
 
 
-UPDATE a
-SET PropertyAddress = ISNULL(a.PropertyAddress,b.PropertyAddress)
+
+select parcelid, propertyaddress
+from nashville_housing
+where propertyaddress is null;
+
+
+
+select a.UniqueID, a.ParcelID , a.PropertyAddress,b.UniqueID, b.ParcelID, b.PropertyAddress, coalesce(a.PropertyAddress, b.propertyAddress)
 FROM nashville_housing a
 JOIN nashville_housing b
-	ON a.ParcelID = b.ParcelID
-	AND a.[UniqueID ] <> b.[UniqueID ]
-WHERE a.PropertyAddress IS null;
+ON a.parcelID = b.parcelID
+AND a.uniqueID != b.uniqueID
+WHERE a.propertyAddress is null;
+
+
+
+
+update nashville_housing a
+JOIN nashville_housing b
+ON a.parcelID = b.parcelID
+AND a.UniqueID != b.UniqueID
+set a.propertyAddress = coalesce(a.PropertyAddress, b.PropertyAddress)
+WHERE a.propertyAddress is NULL;
+
+
+
 
 
 
@@ -48,7 +66,7 @@ FROM nashville_housing;
 
 
 SELECT SUBSTRING(PropertyAddress, 1, INSTR(PropertyAddress, ',') -1 ) as Address,
-SUBSTRING(PropertyAddress, INSTR(PropertyAddress, ',') + 1 , LEN(PropertyAddress)) as Address
+SUBSTRING(PropertyAddress, INSTR(PropertyAddress, ',') + 1 , LENGTH(PropertyAddress)) as City
 FROM nashville_housing;
 
 
@@ -56,14 +74,14 @@ ALTER TABLE nashville_housing
 Add PropertySplitAddress Nvarchar(255);
 
 UPDATE nashville_housing
-SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, INSTR(PropertyAddress, ',') -1 )
+SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, INSTR(PropertyAddress, ',') -1 );
 
 
 ALTER TABLE nashville_housing
 Add PropertySplitCity Nvarchar(255);
 
 UPDATE nashville_housing
-SET PropertySplitCity = SUBSTRING(PropertyAddress, INSTR(PropertyAddress, ',') + 1 , LEN(PropertyAddress));
+SET PropertySplitCity = SUBSTRING(PropertyAddress, INSTR(PropertyAddress, ',') + 1 , LENGTH(PropertyAddress));
 
 
 
@@ -80,9 +98,10 @@ FROM nashville_housing;
 
 SELECT
 SUBSTRING_INDEX(OwnerAddress, ',', 1),
-SUBSTRING_INDEX(OwnerAddress, ',', 2),
-SUBSTRING_INDEX(OwnerAddress, ',', 3)
+SUBSTRING_INDEX(SUBSTRING_INDEX(OwnerAddress, ',', 2), ',', -1),
+SUBSTRING_INDEX(OwnerAddress, ',', -1)
 FROM nashville_housing;
+
 
 
 
@@ -90,14 +109,15 @@ ALTER TABLE nashville_housing
 Add OwnerSplitAddress Nvarchar(255);
 
 Update nashville_housing
-SET OwnerSplitAddress = SUBSTRING_INDEX(OwnerAddress, ',', 1)
+SET OwnerSplitAddress = SUBSTRING_INDEX(OwnerAddress, ',', 1);
+
 
 
 ALTER TABLE nashville_housing
 Add OwnerSplitCity Nvarchar(255);
 
 Update nashville_housing
-SET OwnerSplitCity = SUBSTRING_INDEX(OwnerAddress, ',', 2)
+SET OwnerSplitCity = SUBSTRING_INDEX(SUBSTRING_INDEX(OwnerAddress, ',', 2), ',', -1);
 
 
 
@@ -105,13 +125,12 @@ ALTER TABLE nashville_housing
 Add OwnerSplitState Nvarchar(255);
 
 Update nashville_housing
-SET OwnerSplitState = SUBSTRING_INDEX(OwnerAddress, ',', 3)
+SET OwnerSplitState = SUBSTRING_INDEX(OwnerAddress, ',', -1);
 
 
 
 Select *
-From nashville_housing
-
+From nashville_housing;
 
 
 
@@ -122,9 +141,9 @@ From nashville_housing
 
 
 Select Distinct(SoldAsVacant), Count(SoldAsVacant)
-From Pnashville_housing
+From nashville_housing
 Group by SoldAsVacant
-order by 2
+order by 2;
 
 
 
@@ -134,14 +153,14 @@ CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
      WHEN SoldAsVacant = 'N' THEN 'No'
      ELSE SoldAsVacant
      END
-From nashville_housing
+From nashville_housing;
 
 
 Update nashville_housing
 SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
 	   WHEN SoldAsVacant = 'N' THEN 'No'
 	   ELSE SoldAsVacant
-	   END
+	   END;
 
 
 
@@ -169,12 +188,43 @@ From nashville_housing
 Select *
 From RowNumCTE
 Where row_num > 1
-Order by PropertyAddress
+Order by PropertyAddress;
+
+
+
+
+
+
+
+
+WITH RowNumCTE AS(
+Select *,
+	row_number() OVER (
+	PARTITION BY ParcelID,
+				 PropertyAddress,
+                 SaleDate,
+				 SalePrice,
+				 LegalReference
+				 ORDER BY UniqueID ) row_num
+From nashville_housing
+)
+
+DELETE
+From nashville_housing
+USING nashville_housing
+JOIN RowNumCTE
+ON nashville_housing.uniqueID = RowNumCTE.UniqueID
+Where rownumCTE.row_num > 1;
+
+
+
+
 
 
 
 Select *
-From nashville_housing
+From nashville_housing;
+
 
 
 
@@ -192,7 +242,8 @@ From nashville_housing
 
 
 ALTER TABLE nashville_housing
-DROP COLUMN OwnerAddress, TaxDistrict, PropertyAddress, SaleDate
+DROP OwnerAddress, DROP TaxDistrict, DROP PropertyAddress;
 
+SELECT * from nashville_housing;
 
 
